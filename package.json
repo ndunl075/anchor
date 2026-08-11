@@ -1,0 +1,14 @@
+{
+  "name": "anchor",
+  "private": true,
+  "description": "Convenience scripts for the Anchor eval harness (Python package: replayharness).",
+  "scripts": {
+    "setup": "pip install -e \".[dev]\"",
+    "dev": "python scripts/dev.py",
+    "build": "python scripts/dev.py --build-only",
+    "test": "pytest",
+    "eval": "npm run setup && npm run eval:run",
+    "eval:run": "cd examples && anchor run --name local",
+    "report": "cd examples && anchor report @latest --html ../anchor-report.html"
+  }
+}

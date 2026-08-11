@@ -13,4 +13,9 @@ venv/
 
 # user-project artifacts if anchor is run from repo root during manual testing
 .anchor/cache/
+.anchor/runs/
+examples/.anchor/
+anchor-report.html
+anchor-field-report.png
 .python/
+node_modules/
