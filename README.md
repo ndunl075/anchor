@@ -13,6 +13,15 @@ response caching, full regression comparison, blessed baselines, traffic imports
 redaction, pinned/cached LLM judging, and zero-label pairwise baseline runs. Bootstrap CIs,
 paired bootstrap confidence intervals, judge calibration checks, cost estimates, and structured graders.
 
+## Try it locally (no API key)
+
+```sh
+npm run setup   # pip install -e ".[dev]"
+npm run dev     # stub-run examples → HTML report → opens http://127.0.0.1:8765
+```
+
+Or the same without npm: `pip install -e ".[dev]" && python scripts/dev.py`
+
 ## 60-second quickstart
 
 ~~~sh
