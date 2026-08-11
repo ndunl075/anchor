@@ -9,11 +9,15 @@ from anchor.graders.base import Grader
 from anchor.graders.contains import ContainsGrader
 from anchor.graders.exact import ExactGrader
 from anchor.graders.regex import RegexGrader
+from anchor.graders.llm_judge import LLMJudgeGrader
+from anchor.graders.pairwise import PairwiseGrader
 
 _BUILTIN: dict[str, type] = {
     "exact": ExactGrader,
     "contains": ContainsGrader,
     "regex": RegexGrader,
+    "llm_judge": LLMJudgeGrader,
+    "pairwise": PairwiseGrader,
 }
 
 

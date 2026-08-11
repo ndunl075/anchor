@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
@@ -21,6 +21,8 @@ from anchor.core.cache import ResponseCache, cache_key
 from anchor.core.models import Case, GraderSpec, Message, Request, Result, Verdict
 from anchor.core.scoring import case_passed, combine_verdicts
 from anchor.core.suite import case_hash
+from anchor.core.redact import redact_value
+from anchor.core.config import RedactRule
 from anchor.graders.base import GraderContext
 from anchor.graders.registry import build_grader
 from anchor.providers.base import Provider
@@ -36,6 +38,9 @@ class RunConfig:
     combine: str = "mean"  # mean | min | all, per §7.1
     cache: ResponseCache | None = None  # None = --no-cache: never read, never write
     refresh: bool = False  # True = --refresh: skip the read, still write
+    redact_rules: list[RedactRule] = field(default_factory=list)
+    grader_context: GraderContext = field(default_factory=GraderContext)
+    baseline_mode: bool = False
 
 
 def _resolve_messages(case: Case) -> tuple[list[Message], str | None]:
@@ -82,6 +87,10 @@ async def _run_one(
 
     if resp is None:
         resp = await provider.generate(req)
+        # Results and response cache are persistence boundaries. Redact the
+        # complete normalized payload before either can write it to disk.
+        if config.redact_rules:
+            resp = resp.model_validate(redact_value(resp.model_dump(mode="json"), config.redact_rules))
         if key is not None and resp.error is None:
             # Only cache successful responses — a transient outage shouldn't
             # get baked in as a permanent "answer" for this key.
@@ -102,7 +111,7 @@ async def _run_one(
             status="provider_error",
         )
 
-    specs = case.graders or config.default_graders
+    specs = [GraderSpec(kind="pairwise")] if config.baseline_mode else (case.graders or config.default_graders)
     try:
         graders = [build_grader(spec) for spec in specs]
         verdicts: list[Verdict] = list(
@@ -165,12 +174,14 @@ async def run_suite(
     results_path.parent.mkdir(parents=True, exist_ok=True)
     semaphore = asyncio.Semaphore(config.concurrency)
     write_lock = asyncio.Lock()
-    ctx = GraderContext()
     results: list[Result] = []
 
     async def worker(case: Case, repeat: int) -> None:
         async with semaphore:
-            result = await _run_one(case, repeat, hashes[case.id], provider, config, ctx)
+            result = await _run_one(
+                case, repeat, hashes[case.id], provider, config,
+                replace(config.grader_context, repeat=repeat),
+            )
         async with write_lock:
             with results_path.open("a", encoding="utf-8") as f:
                 f.write(result.model_dump_json() + "\n")

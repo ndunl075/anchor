@@ -15,11 +15,14 @@ from rich.table import Table
 from anchor import __version__
 from anchor.cli._common import BASELINES_DIR, RUNS_DIR, load_manifest, load_results, resolve_run_ref
 from anchor.core.cache import ResponseCache
+from anchor.core.judge_cache import JudgeCache
+from anchor.core.redact import redact_text
 from anchor.core.config import ConfigError, load_config, resolve_provider_name
-from anchor.core.models import EnvInfo, GitInfo, Result, RunManifest
+from anchor.core.models import EnvInfo, GitInfo, GraderSpec, Result, RunManifest
 from anchor.core.runner import RunConfig, run_suite
 from anchor.core.scoring import aggregate_totals
-from anchor.core.suite import SuiteError, compute_case_hashes, load_suite, suite_hash
+from anchor.core.suite import SuiteError, canonical_json, compute_case_hashes, load_suite, short_hash, suite_hash
+from anchor.graders.base import GraderContext
 from anchor.providers.registry import UnknownProviderError, build_provider
 from anchor.report.terminal import make_progress, print_manifest_summary
 
@@ -62,7 +65,7 @@ def run(
     no_cache: bool = typer.Option(False, "--no-cache", help="Bypass the response cache entirely (no read, no write)."),
     refresh: bool = typer.Option(False, "--refresh", help="Skip cache reads but overwrite cache entries with fresh responses."),
     resume: str = typer.Option("", "--resume", help="Resume run_id, skipping completed (case_id, repeat) pairs."),
-    baseline: bool = typer.Option(False, "--baseline", help="Not yet implemented — baseline-diff mode lands in P3 (§10)."),
+    baseline: bool = typer.Option(False, "--baseline", help="Score responses against blessed @baseline with the pinned pairwise judge."),
 ) -> None:
     """Score a suite against a model."""
     try:
@@ -71,7 +74,7 @@ def run(
         console.print(f"[red]error:[/] {exc}")
         raise typer.Exit(code=1)
 
-    if dry_run or baseline:
+    if dry_run:
         flag = "--dry-run" if dry_run else "--baseline"
         console.print(f"[yellow]{flag} isn't implemented yet — see ARCHITECTURE.md §10 for the phase it lands in.[/]")
         raise typer.Exit(code=1)
@@ -117,6 +120,46 @@ def run(
     results_path = run_dir / "results.jsonl"
 
     cache = None if no_cache else ResponseCache(config_path.parent / ".anchor" / "cache")
+    baseline_responses = {}
+    if baseline:
+        try:
+            baseline_id = resolve_run_ref("@baseline")
+            baseline_manifest = load_manifest(baseline_id)
+            if baseline_manifest.suite_hash != suite_hash(compute_case_hashes(cases)):
+                raise ValueError("baseline suite differs from this suite; frozen cases must match")
+            baseline_responses = {
+                (item.case_id, item.repeat): item.response
+                for item in load_results(baseline_id)
+                if item.response is not None and item.status == "ok"
+            }
+            expected = [(case.id, repeat) for case in cases for repeat in range(repeats or config.repeats)]
+            if any(key not in baseline_responses for key in expected):
+                raise ValueError("baseline is missing one or more case/repeat responses")
+        except (typer.BadParameter, ValueError) as exc:
+            console.print(f"[red]error:[/] {exc}")
+            raise typer.Exit(code=1)
+
+    needs_judge = baseline or any(
+        spec.kind in {"llm_judge", "pairwise"}
+        for case in cases for spec in (case.graders or config.graders)
+    )
+    judge_provider = None
+    judge_model = None
+    if needs_judge:
+        if not config.judge.model:
+            console.print("[red]error:[/] judge.model is required for llm_judge or --baseline")
+            raise typer.Exit(code=1)
+        try:
+            judge_name, judge_model = resolve_provider_name(config.judge.model, config)
+            judge_cfg = config.providers.get(judge_name)
+            judge_provider = build_provider(
+                judge_cfg.kind if judge_cfg and judge_cfg.kind else judge_name,
+                api_key_env=judge_cfg.api_key_env if judge_cfg else None,
+                base_url=judge_cfg.base_url if judge_cfg else None,
+            )
+        except (ConfigError, UnknownProviderError) as exc:
+            console.print(f"[red]error:[/] {exc}")
+            raise typer.Exit(code=1)
     run_config = RunConfig(
         model=bare_model,
         default_graders=config.graders,
@@ -125,6 +168,14 @@ def run(
         concurrency=concurrency or config.concurrency,
         cache=cache,
         refresh=refresh,
+        redact_rules=config.redact,
+        baseline_mode=baseline,
+        grader_context=GraderContext(
+            judge_provider=judge_provider,
+            judge_model=judge_model,
+            judge_cache=JudgeCache(config_path.parent / ".anchor" / "cache" / "judges") if needs_judge else None,
+            baseline_responses=baseline_responses,
+        ),
     )
 
     total_jobs = len(cases) * run_config.repeats
@@ -172,10 +223,23 @@ def run(
         model_resolved=model_resolved,
         params=run_config.params,
         repeats=run_config.repeats,
+        grader_versions={
+            spec.kind: "1"
+            for spec in (
+                [GraderSpec(kind="pairwise")]
+                if baseline
+                else [spec for case in cases for spec in (case.graders or config.graders)]
+            )
+        },
+        judge_model=judge_model,
+        judge_prompt_hash=(
+            short_hash(canonical_json({"judge": config.judge.model, "graders": config.graders}))
+            if needs_judge else None
+        ),
         totals=aggregate_totals(all_results),
         env=EnvInfo(python=platform.python_version(), os=platform.platform()),
         git=_git_info(config_path.parent),
-        notes=name,
+        notes=redact_text(name, config.redact),
         tags=list(tags),
     )
     (run_dir / "manifest.json").write_text(manifest.model_dump_json(indent=2), encoding="utf-8")

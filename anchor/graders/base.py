@@ -7,10 +7,12 @@ interpretable even after a grader's logic evolves.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from anchor.core.models import Case, Response, Verdict
+from anchor.core.judge_cache import JudgeCache
+from anchor.providers.base import Provider
 
 
 @dataclass
@@ -20,6 +22,11 @@ class GraderContext:
     their pinned judge provider/model and cache handle off this additively,
     without changing the Grader protocol shape.
     """
+    judge_provider: Provider | None = None
+    judge_model: str | None = None
+    judge_cache: JudgeCache | None = None
+    baseline_responses: dict[tuple[str, int], Response] = field(default_factory=dict)
+    repeat: int = 0
 
 
 class Grader(Protocol):
