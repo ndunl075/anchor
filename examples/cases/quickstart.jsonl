@@ -1,0 +1,10 @@
+{"id": "quickstart-01", "input": "What is 12 * 12? Answer with just the number.", "expect": "144", "tags": ["math"]}
+{"id": "quickstart-02", "input": "What is the capital of France? Answer with just the city name.", "expect": "Paris", "tags": ["factual"]}
+{"id": "quickstart-03", "input": "Name a primary color.", "expect": ["red", "blue", "yellow"], "graders": [{"kind": "contains", "config": {"mode": "any", "case_sensitive": false}}], "tags": ["reasoning"]}
+{"id": "quickstart-04", "input": "List the first three planets from the sun, comma separated.", "expect": ["Mercury", "Venus", "Earth"], "graders": [{"kind": "contains", "config": {"mode": "all", "case_sensitive": false}}], "tags": ["factual"]}
+{"id": "quickstart-05", "input": "Describe a cat without using the word 'dog'.", "graders": [{"kind": "contains", "config": {"mode": "none", "case_sensitive": false, "values": ["dog"]}}], "tags": ["reasoning"]}
+{"id": "quickstart-06", "input": "Give today's date in YYYY-MM-DD format only.", "graders": [{"kind": "regex", "config": {"pattern": "\\d{4}-\\d{2}-\\d{2}"}}], "tags": ["format"]}
+{"id": "quickstart-07", "input": "Reply with exactly one word: yes or no. Is water wet?", "graders": [{"kind": "regex", "config": {"pattern": "^(yes|no)$", "flags": ["i"], "fullmatch": true}}], "tags": ["format"]}
+{"id": "quickstart-08", "input": "What is 2 + 2?", "expect": "4", "graders": [{"kind": "exact", "config": {"case_sensitive": false}}], "tags": ["math"]}
+{"id": "quickstart-09", "input": "Summarize: 'The quick brown fox jumps over the lazy dog.' Mention the animal that jumps.", "expect": ["fox"], "graders": [{"kind": "contains", "config": {"mode": "any"}}], "tags": ["reasoning"]}
+{"id": "quickstart-10", "input": "What color is the sky on a clear day? One word.", "expect": "Blue", "graders": [{"kind": "exact", "config": {"case_sensitive": false}}], "tags": ["factual"]}
