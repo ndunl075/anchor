@@ -9,7 +9,14 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
+from anchor.core.compare import CaseDiff, CompareReport
 from anchor.core.models import RunManifest
+
+# §7.4: "Warn when case_count < 30 that CIs are wide and the regression list
+# matters more." No CI exists yet (P4), but the underlying caution — small
+# suites make any single delta anecdotal — applies just as much to a bare
+# point estimate, so the warning fires here too.
+_SMALL_SUITE_THRESHOLD = 30
 
 
 def make_progress(total: int) -> tuple[Progress, int]:
@@ -44,3 +51,61 @@ def print_manifest_summary(console: Console, manifest: RunManifest) -> None:
     table.add_row("p95 latency", f"{manifest.totals.p95_latency:.0f} ms")
     table.add_row("tokens in/out", f"{manifest.totals.tokens_in}/{manifest.totals.tokens_out}")
     console.print(table)
+
+
+def _fmt_pct(value: float | None) -> str:
+    return f"{value:.1%}" if value is not None else "-"
+
+
+def _fmt_delta_pct(value: float | None) -> str:
+    return f"{value:+.1%}" if value is not None else "-"
+
+
+def print_compare_summary(
+    console: Console,
+    report: CompareReport,
+    diffs: list[CaseDiff],
+    tag_stats: dict[str, dict] | None = None,
+) -> None:
+    """Headline (Δscore, Δcost, Δp95 latency, counts — never Δscore alone,
+    §7.2) + per-case diff table + optional per-tag breakdown."""
+    headline = Table(title=f"{report.run_a.run_id} -> {report.run_b.run_id}", show_header=False)
+    headline.add_column("metric")
+    headline.add_column("value")
+    headline.add_row("Δ score", f"{report.delta_score:+.1%} (CI not yet computed — lands in P4)")
+    headline.add_row("Δ cost", f"${report.delta_cost_usd:+.4f}")
+    headline.add_row("Δ p95 latency", f"{report.delta_p95_latency:+.0f} ms")
+    counts_str = ", ".join(f"{k}={v}" for k, v in report.counts.items() if v) or "no cases compared"
+    headline.add_row("counts", counts_str)
+    console.print(headline)
+
+    if 0 < len(diffs) < _SMALL_SUITE_THRESHOLD:
+        console.print(
+            f"[yellow]small suite ({len(diffs)} cases) — treat any score delta as anecdotal; "
+            "the regression list below matters more.[/]"
+        )
+
+    table = Table(title="case diffs")
+    for col in ("case_id", "class", "score A", "score B", "Δ", "note"):
+        table.add_column(col)
+    for d in diffs:
+        table.add_row(
+            d.case_id,
+            d.classification.value,
+            _fmt_pct(d.score_a),
+            _fmt_pct(d.score_b),
+            _fmt_delta_pct(d.delta),
+            d.note,
+        )
+    console.print(table)
+
+    if tag_stats:
+        tag_table = Table(title="per-tag breakdown")
+        for col in ("tag", "n", "regressions", "fixes", "mean Δ"):
+            tag_table.add_column(col)
+        for tag, stats in sorted(tag_stats.items()):
+            tag_table.add_row(
+                tag, str(stats["n"]), str(stats["regressions"]), str(stats["fixes"]),
+                _fmt_delta_pct(stats["mean_delta"]),
+            )
+        console.print(tag_table)
