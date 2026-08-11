@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="anchor/assets/anchor-logo.png" alt="Anchor logo" width="220">
+</p>
+
 # anchor
 
 Replay your own prompts against any model. Private score, not a public leaderboard.

@@ -9,4 +9,5 @@ def test_html_report_embeds_data_and_filter():
     html = render_html([manifest], {"r1": [Result(case_id="c1", case_hash="h", response=None)]})
     assert "OFFLINE ARTIFACT" in html
     assert "anchor-data" in html
+    assert "data:image/png;base64," in html
     assert "c1" in html
