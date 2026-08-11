@@ -10,6 +10,7 @@ import pytest
 from anchor.core.models import Message, Request
 from anchor.providers.anthropic import AnthropicProvider
 from anchor.providers.openai import OpenAIProvider
+from anchor.providers.openai_compat import OpenAICompatProvider
 
 
 @pytest.fixture(autouse=True)
@@ -156,3 +157,13 @@ async def test_openai_tool_call_parsing():
     resp = await _generate(provider)
     assert resp.text == ""
     assert resp.tool_calls[0].arguments == {"q": "x"}
+
+
+async def test_openai_compat_works_without_an_api_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    def handler(request):
+        assert request.url.path == "/v1/chat/completions"
+        assert "authorization" not in request.headers
+        return httpx.Response(200, json={"choices": [{"message": {"content": "local"}, "finish_reason": "stop"}]})
+    resp = await _generate(OpenAICompatProvider(client=_client(handler)))
+    assert resp.text == "local"

@@ -5,12 +5,14 @@ from importlib.metadata import entry_points
 
 from anchor.providers.anthropic import AnthropicProvider
 from anchor.providers.openai import OpenAIProvider
+from anchor.providers.openai_compat import OpenAICompatProvider
 
 ENTRY_POINT_GROUP = "anchor.providers"
 
 _BUILTIN: dict[str, type] = {
     "anthropic": AnthropicProvider,
     "openai": OpenAIProvider,
+    "openai_compat": OpenAICompatProvider,
 }
 
 
