@@ -1,9 +1,4 @@
-"""`anchor run` and `anchor runs` — execute a suite, list/inspect past runs (§8).
-
-Run refs beyond a bare run_id or `@latest` (`@baseline[:name]`, `-N`) and the
-`bless` command land with P2's replay/compare work (§10) — this is the P1
-walking skeleton: run, and list/show what ran.
-"""
+"""`anchor run` and `anchor runs` — execute a suite, list/inspect/bless past runs (§8)."""
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +13,8 @@ from rich.console import Console
 from rich.table import Table
 
 from anchor import __version__
+from anchor.cli._common import BASELINES_DIR, RUNS_DIR, load_manifest, load_results, resolve_run_ref
+from anchor.core.cache import ResponseCache
 from anchor.core.config import ConfigError, load_config, resolve_provider_name
 from anchor.core.models import EnvInfo, GitInfo, Result, RunManifest
 from anchor.core.runner import RunConfig, run_suite
@@ -27,7 +24,6 @@ from anchor.providers.registry import UnknownProviderError, build_provider
 from anchor.report.terminal import make_progress, print_manifest_summary
 
 console = Console()
-RUNS_DIR = Path(".anchor/runs")
 
 # If more than this fraction of results are provider_error, the run's exit
 # code signals an operational failure (3) rather than success (0) — distinct
@@ -54,16 +50,6 @@ def _git_info(base_dir: Path) -> GitInfo | None:
         return None
 
 
-def _load_all_results(results_path: Path) -> list[Result]:
-    if not results_path.exists():
-        return []
-    return [
-        Result.model_validate_json(line)
-        for line in results_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-
-
 def run(
     model: str = typer.Option("", "--model", help="Override the default model from anchor.yaml."),
     suite: str = typer.Option("", "--suite", help="Override the suite glob from anchor.yaml."),
@@ -73,7 +59,8 @@ def run(
     tags: list[str] = typer.Option([], "--tags", help="Only run cases with any of these tags."),
     name: str = typer.Option("", "--name", help="Free-text note stored in the manifest."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Not yet implemented — cost estimate lands in P4 (§10)."),
-    no_cache: bool = typer.Option(False, "--no-cache", help="Accepted for forward-compat; caching lands in P2 (§10)."),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Bypass the response cache entirely (no read, no write)."),
+    refresh: bool = typer.Option(False, "--refresh", help="Skip cache reads but overwrite cache entries with fresh responses."),
     resume: str = typer.Option("", "--resume", help="Resume run_id, skipping completed (case_id, repeat) pairs."),
     baseline: bool = typer.Option(False, "--baseline", help="Not yet implemented — baseline-diff mode lands in P3 (§10)."),
 ) -> None:
@@ -129,12 +116,15 @@ def run(
     run_dir.mkdir(parents=True, exist_ok=True)
     results_path = run_dir / "results.jsonl"
 
+    cache = None if no_cache else ResponseCache(config_path.parent / ".anchor" / "cache")
     run_config = RunConfig(
         model=bare_model,
         default_graders=config.graders,
         params=config.params,
         repeats=repeats or config.repeats,
         concurrency=concurrency or config.concurrency,
+        cache=cache,
+        refresh=refresh,
     )
 
     total_jobs = len(cases) * run_config.repeats
@@ -164,7 +154,7 @@ def run(
 
     # Totals cover the run's full on-disk history, not just rows written this
     # invocation — matters when --resume only redid a subset.
-    all_results = _load_all_results(results_path)
+    all_results = load_results(run_id)
 
     case_hashes = compute_case_hashes(cases)
     model_resolved = next(
@@ -198,18 +188,13 @@ def run(
         raise typer.Exit(code=3)
 
 
-runs_app = typer.Typer(help="List and inspect past runs.")
+runs_app = typer.Typer(help="List, inspect, and bless past runs.")
 
-
-def _resolve_run_ref(ref: str) -> str:
-    """run_id or `@latest`. The full grammar (`@baseline[:name]`, `-N`) lands
-    with `bless`/`compare` in P2 (§8)."""
-    if ref != "@latest":
-        return ref
-    manifests = sorted(RUNS_DIR.glob("*/manifest.json"), key=lambda p: p.stat().st_mtime)
-    if not manifests:
-        raise typer.BadParameter("no runs exist yet")
-    return manifests[-1].parent.name
+# Click parses a bare "-1" as an unknown option even inside a Typer subcommand
+# (upstream limitation, reproduced independently of this codebase) — the `--`
+# separator is the standard, reliable way to tell it "everything after this is
+# a positional value", so -N refs need `anchor runs show -- -1`.
+_REF_HELP = "run_id or a ref: @latest, @baseline[:name], -N (use `-- -N` for the latter, e.g. `-- -1`)"
 
 
 @runs_app.command("list")
@@ -243,11 +228,24 @@ def list_runs() -> None:
 
 
 @runs_app.command("show")
-def show_run(ref: str = typer.Argument(..., help="run_id or @latest")) -> None:
-    run_id = _resolve_run_ref(ref)
-    manifest_path = RUNS_DIR / run_id / "manifest.json"
-    if not manifest_path.exists():
-        console.print(f"[red]error:[/] no run {run_id!r} in {RUNS_DIR}")
-        raise typer.Exit(code=1)
-    manifest = RunManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+def show_run(
+    ref: str = typer.Argument(..., help=_REF_HELP),
+) -> None:
+    run_id = resolve_run_ref(ref)
+    manifest = load_manifest(run_id)
     print_manifest_summary(console, manifest)
+
+
+@runs_app.command("bless")
+def bless_run(
+    ref: str = typer.Argument(..., help=_REF_HELP),
+    name: str = typer.Argument("default", help='Baseline name (default: "default", i.e. plain @baseline).'),
+) -> None:
+    """Point `@baseline[:name]` at a run, so future compares/imports can target
+    it without remembering the run_id (§8)."""
+    run_id = resolve_run_ref(ref)
+    load_manifest(run_id)  # raises typer.BadParameter if the run doesn't exist
+
+    BASELINES_DIR.mkdir(parents=True, exist_ok=True)
+    (BASELINES_DIR / name).write_text(run_id, encoding="utf-8")
+    console.print(f"[green]blessed[/] {run_id} as @baseline:{name}")
