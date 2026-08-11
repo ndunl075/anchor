@@ -8,7 +8,13 @@ import time
 import httpx
 
 from anchor.core.models import ErrorInfo, Request, Response, ToolCall, Usage
-from anchor.providers.base import RETRYABLE_STATUS, BaseProvider, parse_retry_after, read_api_key
+from anchor.providers.base import (
+    RETRYABLE_STATUS,
+    BaseProvider,
+    MissingAPIKeyError,
+    parse_retry_after,
+    read_api_key,
+)
 
 DEFAULT_BASE_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -50,8 +56,16 @@ class AnthropicProvider(BaseProvider):
         return payload
 
     async def _call(self, req: Request) -> Response:
+        try:
+            api_key = read_api_key(self.api_key_env)
+        except MissingAPIKeyError as exc:
+            # A missing key is a config problem, not a transient one — surface
+            # it as non-retryable so generate() doesn't burn 3 backoff cycles
+            # on something retrying can never fix.
+            return Response(error=ErrorInfo(type="missing_api_key", message=str(exc), retryable=False))
+
         headers = {
-            "x-api-key": read_api_key(self.api_key_env),
+            "x-api-key": api_key,
             "anthropic-version": ANTHROPIC_VERSION,
             "content-type": "application/json",
         }

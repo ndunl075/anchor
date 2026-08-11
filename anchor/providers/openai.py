@@ -7,7 +7,13 @@ import time
 import httpx
 
 from anchor.core.models import ErrorInfo, Request, Response, ToolCall, Usage
-from anchor.providers.base import RETRYABLE_STATUS, BaseProvider, parse_retry_after, read_api_key
+from anchor.providers.base import (
+    RETRYABLE_STATUS,
+    BaseProvider,
+    MissingAPIKeyError,
+    parse_retry_after,
+    read_api_key,
+)
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1/chat/completions"
 
@@ -53,8 +59,13 @@ class OpenAIProvider(BaseProvider):
         return payload
 
     async def _call(self, req: Request) -> Response:
+        try:
+            api_key = read_api_key(self.api_key_env)
+        except MissingAPIKeyError as exc:
+            return Response(error=ErrorInfo(type="missing_api_key", message=str(exc), retryable=False))
+
         headers = {
-            "Authorization": f"Bearer {read_api_key(self.api_key_env)}",
+            "Authorization": f"Bearer {api_key}",
             "content-type": "application/json",
         }
         payload = self._build_payload(req)
