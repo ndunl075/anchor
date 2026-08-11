@@ -420,7 +420,11 @@ entry-point plugin docs, examples/ suite, GitHub Action snippet, README with the
 
 ---
 
-## 12. Open decisions
+## 12. Resolved and deferred decisions
+
+- **Resolved:** the distribution name is `replayharness`; the CLI remains `anchor`.
+  `anchor-eval` is already published on PyPI for an unrelated retrieval-evaluation project.
+- **Resolved:** runs are committed by default; `anchor init --no-track-runs` opts out.
 
 - Package/CLI name — `anchor` is taken on PyPI. Candidates: `anchor-eval`, `replayharness`. CLI
   stays `anchor`. **Resolve before P1 publishes.**

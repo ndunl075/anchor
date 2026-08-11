@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "anchor-eval"
+name = "replayharness"
 version = "0.1.0"
 description = "Replay your own prompts against any model. Private score, not a public leaderboard."
 readme = "README.md"

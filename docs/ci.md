@@ -6,7 +6,7 @@ without a wrapper script.
 ~~~yaml
 - name: Evaluate candidate model
   run: |
-    pip install anchor-eval
+    pip install replayharness
     anchor run --model claude-opus-5 --name candidate
     anchor compare @baseline @latest
 ~~~

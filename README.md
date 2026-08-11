@@ -12,7 +12,7 @@ paired bootstrap confidence intervals, judge calibration checks, cost estimates,
 ## 60-second quickstart
 
 ~~~sh
-pip install anchor-eval
+pip install replayharness
 anchor init my-evals && cd my-evals
 anchor import prod.jsonl --map input=.messages --map id=.request_id
 export ANTHROPIC_API_KEY=...
