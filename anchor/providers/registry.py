@@ -36,3 +36,20 @@ def get_provider_class(name: str) -> type:
     except KeyError:
         known = ", ".join(sorted(registry)) or "(none registered)"
         raise UnknownProviderError(f"unknown provider {name!r}. Known providers: {known}") from None
+
+
+def build_provider(
+    kind: str, *, api_key_env: str | None = None, base_url: str | None = None
+) -> object:
+    """Instantiate a provider by registry key, applying only the overrides the
+    caller actually set (adapters keep their own defaults otherwise). Kept
+    decoupled from `core.config.ProviderConfig` on purpose — this module has
+    no reason to know about YAML.
+    """
+    cls = get_provider_class(kind)
+    kwargs: dict[str, str] = {}
+    if api_key_env:
+        kwargs["api_key_env"] = api_key_env
+    if base_url:
+        kwargs["base_url"] = base_url
+    return cls(**kwargs)
