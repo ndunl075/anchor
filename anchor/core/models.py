@@ -58,6 +58,7 @@ class ErrorInfo(BaseModel):
     message: str
     retryable: bool = False
     status_code: int | None = None
+    retry_after: float | None = None
 
 
 class Request(BaseModel):

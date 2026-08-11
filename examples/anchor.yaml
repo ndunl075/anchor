@@ -1,0 +1,13 @@
+version: 1
+suite: cases/*.jsonl
+
+model: claude-opus-5
+providers:
+  anthropic: { api_key_env: ANTHROPIC_API_KEY }
+
+params: { temperature: 0, max_tokens: 256 }
+repeats: 1
+concurrency: 8
+
+graders:
+  - kind: exact
