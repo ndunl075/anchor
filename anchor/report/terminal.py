@@ -72,7 +72,7 @@ def print_compare_summary(
     headline = Table(title=f"{report.run_a.run_id} -> {report.run_b.run_id}", show_header=False)
     headline.add_column("metric")
     headline.add_column("value")
-    headline.add_row("Δ score", f"{report.delta_score:+.1%} (CI not yet computed — lands in P4)")
+    headline.add_row("Δ score", f"{report.delta_score:+.1%} (95% CI {report.delta_score_ci[0]:+.1%} to {report.delta_score_ci[1]:+.1%}; {'significant' if report.significant else 'not significant'})")
     headline.add_row("Δ cost", f"${report.delta_cost_usd:+.4f}")
     headline.add_row("Δ p95 latency", f"{report.delta_p95_latency:+.0f} ms")
     counts_str = ", ".join(f"{k}={v}" for k, v in report.counts.items() if v) or "no cases compared"

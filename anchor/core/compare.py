@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from anchor.core.models import Result, RunManifest
+from anchor.core.stats import paired_bootstrap_ci
 
 
 class Classification(str, Enum):
@@ -53,6 +54,8 @@ class CompareReport:
     delta_score: float
     delta_cost_usd: float
     delta_p95_latency: float
+    delta_score_ci: tuple[float, float]
+    significant: bool
 
 
 def _group_by_case(results: list[Result]) -> dict[str, list[Result]]:
@@ -122,6 +125,8 @@ def compare_runs(
     for d in diffs:
         counts[d.classification.value] += 1
 
+    paired_deltas = [d.delta for d in diffs if d.delta is not None and d.classification not in {Classification.ERROR, Classification.CHANGED, Classification.MISSING}]
+    ci = paired_bootstrap_ci(paired_deltas)
     return CompareReport(
         run_a=manifest_a,
         run_b=manifest_b,
@@ -130,6 +135,8 @@ def compare_runs(
         delta_score=manifest_b.totals.score - manifest_a.totals.score,
         delta_cost_usd=manifest_b.totals.cost_usd - manifest_a.totals.cost_usd,
         delta_p95_latency=manifest_b.totals.p95_latency - manifest_a.totals.p95_latency,
+        delta_score_ci=ci,
+        significant=not (ci[0] <= 0 <= ci[1]),
     )
 
 

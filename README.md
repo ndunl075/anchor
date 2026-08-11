@@ -4,10 +4,10 @@ Replay your own prompts against any model. Private score, not a public leaderboa
 
 Build spec and design decisions live in [ARCHITECTURE.md](ARCHITECTURE.md) — read that first.
 
-Status: **P1 + P2 + P3 done.** Anchor supports local suites, immutable replay records,
+Status: **P1 + P2 + P3 + P4 done.** Anchor supports local suites, immutable replay records,
 response caching, full regression comparison, blessed baselines, traffic imports, configurable
 redaction, pinned/cached LLM judging, and zero-label pairwise baseline runs. Bootstrap CIs,
-calibration checks, and cost estimates land in P4.
+paired bootstrap confidence intervals, judge calibration checks, cost estimates, and structured graders.
 
 ```
 pip install -e ".[dev]"

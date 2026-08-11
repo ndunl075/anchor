@@ -11,6 +11,10 @@ from anchor.graders.exact import ExactGrader
 from anchor.graders.regex import RegexGrader
 from anchor.graders.llm_judge import LLMJudgeGrader
 from anchor.graders.pairwise import PairwiseGrader
+from anchor.graders.json_schema import JsonSchemaGrader
+from anchor.graders.json_path import JsonPathGrader
+from anchor.graders.tool_call import ToolCallGrader
+from anchor.graders.python_fn import PythonFnGrader
 
 _BUILTIN: dict[str, type] = {
     "exact": ExactGrader,
@@ -18,6 +22,10 @@ _BUILTIN: dict[str, type] = {
     "regex": RegexGrader,
     "llm_judge": LLMJudgeGrader,
     "pairwise": PairwiseGrader,
+    "json_schema": JsonSchemaGrader,
+    "json_path": JsonPathGrader,
+    "tool_call": ToolCallGrader,
+    "python_fn": PythonFnGrader,
 }
 
 

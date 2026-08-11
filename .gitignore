@@ -13,3 +13,4 @@ venv/
 
 # user-project artifacts if anchor is run from repo root during manual testing
 .anchor/cache/
+.python/

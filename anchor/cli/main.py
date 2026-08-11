@@ -8,6 +8,7 @@ from anchor.cli import cases as cases_cli
 from anchor.cli import compare as compare_cli
 from anchor.cli import init as init_cli
 from anchor.cli import import_ as import_cli
+from anchor.cli import judge_check as judge_check_cli
 from anchor.cli import run as run_cli
 
 app = typer.Typer(
@@ -20,6 +21,7 @@ app.command("init")(init_cli.init)
 app.command("run")(run_cli.run)
 app.command("compare")(compare_cli.compare)
 app.command("import")(import_cli.import_logs)
+app.command("judge-check")(judge_check_cli.judge_check)
 app.add_typer(run_cli.runs_app, name="runs")
 app.add_typer(cases_cli.app, name="cases")
 

@@ -15,6 +15,7 @@ from rich.table import Table
 from anchor import __version__
 from anchor.cli._common import BASELINES_DIR, RUNS_DIR, load_manifest, load_results, resolve_run_ref
 from anchor.core.cache import ResponseCache
+from anchor.core.cost import estimate_tokens, estimate_usd
 from anchor.core.judge_cache import JudgeCache
 from anchor.core.redact import redact_text
 from anchor.core.config import ConfigError, load_config, resolve_provider_name
@@ -74,7 +75,7 @@ def run(
         console.print(f"[red]error:[/] {exc}")
         raise typer.Exit(code=1)
 
-    if dry_run:
+    if False and dry_run:
         flag = "--dry-run" if dry_run else "--baseline"
         console.print(f"[yellow]{flag} isn't implemented yet — see ARCHITECTURE.md §10 for the phase it lands in.[/]")
         raise typer.Exit(code=1)
@@ -101,6 +102,17 @@ def run(
     except ConfigError as exc:
         console.print(f"[red]error:[/] {exc}")
         raise typer.Exit(code=1)
+
+    if dry_run:
+        input_tokens = sum(
+            estimate_tokens(c.input if isinstance(c.input, str) else " ".join(m.content for m in c.input))
+            for c in cases
+        )
+        output_tokens = int(config.params.get("max_tokens", 1024)) * len(cases) * (repeats or config.repeats)
+        estimated = estimate_usd(bare_model, input_tokens, output_tokens, config.pricing_overrides)
+        cost = f"${estimated:.4f}" if estimated is not None else "unknown (add pricing_overrides)"
+        console.print(f"dry run: {len(cases)} cases, ~{input_tokens} input tokens, <= {output_tokens} output tokens, cost {cost}")
+        raise typer.Exit(code=0)
 
     provider_cfg = config.providers.get(provider_name)
     kind = provider_cfg.kind if provider_cfg and provider_cfg.kind else provider_name

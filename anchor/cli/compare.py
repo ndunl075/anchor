@@ -83,6 +83,8 @@ def _to_jsonable(report: CompareReport, diffs: list[CaseDiff], tag_stats: dict[s
         "run_a": report.run_a.run_id,
         "run_b": report.run_b.run_id,
         "delta_score": report.delta_score,
+        "delta_score_ci": list(report.delta_score_ci),
+        "significant": report.significant,
         "delta_cost_usd": report.delta_cost_usd,
         "delta_p95_latency_ms": report.delta_p95_latency,
         "counts": report.counts,
@@ -106,7 +108,7 @@ def _to_markdown(report: CompareReport, diffs: list[CaseDiff], tag_stats: dict[s
     lines = [
         f"## Compare: `{report.run_a.run_id}` -> `{report.run_b.run_id}`",
         "",
-        f"- Δ score: {report.delta_score:+.1%} (CI not yet computed — lands in P4)",
+        f"- Δ score: {report.delta_score:+.1%} (95% CI {report.delta_score_ci[0]:+.1%} to {report.delta_score_ci[1]:+.1%}; {'significant' if report.significant else 'not significant'})",
         f"- Δ cost: ${report.delta_cost_usd:+.4f}",
         f"- Δ p95 latency: {report.delta_p95_latency:+.0f} ms",
         f"- counts: {counts_str}",

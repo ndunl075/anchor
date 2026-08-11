@@ -40,6 +40,7 @@ class ProviderConfig(BaseModel):
 class JudgeConfig(BaseModel):
     model: str | None = None
     temperature: float = 0.0
+    calibration_suite: str = "cases/calibration.jsonl"
 
 
 class CompareConfig(BaseModel):
@@ -64,6 +65,7 @@ class Config(BaseModel):
     judge: JudgeConfig = Field(default_factory=JudgeConfig)
     compare: CompareConfig = Field(default_factory=CompareConfig)
     redact: list[RedactRule] = Field(default_factory=list)
+    pricing_overrides: dict[str, dict[str, float]] = Field(default_factory=dict)
 
 
 def load_config(path: str | Path = DEFAULT_CONFIG_FILENAME) -> Config:

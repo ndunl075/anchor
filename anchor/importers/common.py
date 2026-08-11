@@ -38,6 +38,9 @@ def case_from_record(
     if input_value is None:
         # OpenAI-style logs conventionally carry conversation input in messages.
         input_value = lookup(record, ".messages")
+    # Redact the raw JSON-compatible input before turning message dictionaries
+    # into Pydantic objects; the redactor deliberately doesn't mutate models.
+    input_value = redact_value(input_value, rules)
     parsed_messages = messages(input_value)
     if parsed_messages is not None:
         input_value = parsed_messages
